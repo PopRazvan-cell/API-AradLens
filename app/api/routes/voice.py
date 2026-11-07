@@ -1,12 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin
-from app.core.config import settings
-from app.core.elevenlabs import ElevenLabsError, list_voices, synthesize_speech
+from app.core.elevenlabs import ElevenLabsError, synthesize_speech
+from app.core.storage import (
+    location_voice_path,
+    save_location_voice,
+    voice_audio_media_type,
+)
+from app.database import get_db
 from app.models.admin import Admin
-from app.schemas.voice import SpeechRequest
+from app.models.location import Location
+from app.schemas.voice import LocationVoiceOut
 
 router = APIRouter(prefix="/voice", tags=["voice"])
+
+MAX_TTS_CHARS = 5000
 
 
 def _raise_http(exc: ElevenLabsError) -> None:
@@ -17,45 +29,68 @@ def _raise_http(exc: ElevenLabsError) -> None:
 
 
 @router.post(
-    "/speech",
-    response_class=Response,
-    summary="Generează audio din text (ElevenLabs TTS)",
-    responses={200: {"content": {"audio/mpeg": {}}, "description": "Audio MP3"}},
+    "/locations/{location_id}",
+    response_model=LocationVoiceOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Generează fișierul audio al descrierii locației",
 )
-def speech(
-    payload: SpeechRequest,
+def generate_location_voice(
+    location_id: int,
+    db: Session = Depends(get_db),
     _: Admin = Depends(get_current_admin),
-) -> Response:
-    try:
-        audio = synthesize_speech(
-            payload.text,
-            voice_id=payload.voice_id,
-            model_id=payload.model_id,
-            language=payload.language,
+) -> LocationVoiceOut:
+    location = db.get(Location, location_id)
+    if location is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Locația nu a fost găsită",
         )
-    except ElevenLabsError as exc:
-        _raise_http(exc)
 
-    return Response(content=audio, media_type="audio/mpeg")
+    text = (location.description or "").strip()
+    if not text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Locația nu are descriere",
+        )
+    if len(text) > MAX_TTS_CHARS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Descrierea depășește limita ElevenLabs "
+                f"({MAX_TTS_CHARS} caractere)"
+            ),
+        )
 
-
-@router.get("/voices", summary="Lista vocilor disponibile ElevenLabs")
-def voices(_: Admin = Depends(get_current_admin)) -> dict:
     try:
-        return list_voices()
+        audio = synthesize_speech(text, language="ro")
     except ElevenLabsError as exc:
         _raise_http(exc)
 
+    public_path = save_location_voice(location_id, audio)
+    return LocationVoiceOut(
+        location_id=location_id,
+        file=public_path,
+        media_type=voice_audio_media_type(),
+        size_bytes=len(audio),
+    )
 
-@router.get("/status", summary="Starea configurării ElevenLabs")
-def voice_status(_: Admin = Depends(get_current_admin)) -> dict:
-    return {
-        "configured": bool(settings.elevenlabs_api_key),
-        "default_voice_id": settings.elevenlabs_voice_id,
-        "voices": {
-            "ro": settings.elevenlabs_voice_id_ro,
-            "en": settings.elevenlabs_voice_id_en,
-        },
-        "model_id": settings.elevenlabs_model_id,
-        "output_format": settings.elevenlabs_output_format,
-    }
+
+@router.get(
+    "/locations/{location_id}",
+    response_class=FileResponse,
+    summary="Descarcă fișierul audio generat pentru locație",
+    responses={
+        200: {"content": {"audio/*": {}}, "description": "Fișier audio"},
+        404: {"description": "Fișierul audio nu a fost generat"},
+    },
+)
+def get_location_voice(location_id: int) -> FileResponse:
+    path = location_voice_path(location_id)
+    if not os.path.isfile(path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Fișierul audio nu a fost generat pentru această locație",
+        )
+
+    return FileResponse(path, media_type=voice_audio_media_type())
+

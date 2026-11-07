@@ -14,6 +14,45 @@ def locations_image_dir() -> str:
     return path
 
 
+def voices_dir() -> str:
+    path = os.path.join(settings.media_dir, "voices")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def voice_audio_extension() -> str:
+    """Extensia fisierului audio, derivata din formatul ElevenLabs configurat."""
+    prefix = settings.elevenlabs_output_format.split("_", 1)[0].lower()
+    return {
+        "mp3": ".mp3",
+        "opus": ".ogg",
+        "pcm": ".pcm",
+        "ulaw": ".ulaw",
+    }.get(prefix, ".mp3")
+
+
+def voice_audio_media_type() -> str:
+    return {
+        ".mp3": "audio/mpeg",
+        ".ogg": "audio/ogg",
+        ".pcm": "application/octet-stream",
+        ".ulaw": "application/octet-stream",
+    }.get(voice_audio_extension(), "application/octet-stream")
+
+
+def location_voice_path(location_id: int) -> str:
+    """Calea absoluta a fisierului audio al locatiei (voices/{id}.<ext>)."""
+    return os.path.join(voices_dir(), f"{location_id}{voice_audio_extension()}")
+
+
+def save_location_voice(location_id: int, content: bytes) -> str:
+    """Scrie fisierul audio al locatiei si returneaza calea publica (/media/...)."""
+    path = location_voice_path(location_id)
+    with open(path, "wb") as out:
+        out.write(content)
+    return f"/media/voices/{os.path.basename(path)}"
+
+
 async def save_location_image(file: UploadFile) -> str:
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:

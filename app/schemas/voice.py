@@ -19,3 +19,10 @@ class SpeechRequest(BaseModel):
     model_id: str | None = Field(
         default=None, description="Opțional; suprascrie ELEVENLABS_MODEL_ID"
     )
+
+
+class LocationVoiceOut(BaseModel):
+    location_id: int = Field(description="ID-ul locației")
+    file: str = Field(description="Calea publică a fișierului audio generat")
+    media_type: str = Field(description="Tipul MIME al fișierului audio")
+    size_bytes: int = Field(description="Dimensiunea fișierului în bytes")
