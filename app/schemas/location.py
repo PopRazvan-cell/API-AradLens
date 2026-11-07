@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.category import CategoryOut
+
 
 class LocationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -12,6 +14,7 @@ class LocationOut(BaseModel):
     longitude: float
     description: str | None = None
     images: list[int] = Field(default_factory=list)
+    category: CategoryOut | None = None
 
     @field_validator("images", mode="before")
     @classmethod
@@ -27,6 +30,7 @@ class LocationCreate(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     description: str | None = None
     image: str | None = Field(default=None, max_length=500)
+    category_id: int | None = None
 
 
 class LocationUpdate(BaseModel):
@@ -35,6 +39,7 @@ class LocationUpdate(BaseModel):
     longitude: float | None = Field(default=None, ge=-180, le=180)
     description: str | None = None
     image: str | None = Field(default=None, max_length=500)
+    category_id: int | None = None
 
 
 class LocationImageOut(BaseModel):

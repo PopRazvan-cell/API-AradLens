@@ -5,7 +5,15 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import OperationalError
 
 from app.database import Base, SessionLocal, engine
-from app.models import Admin, InviteCode, Location, LocationImage, Tour, TourLocation  # noqa: F401
+from app.models import (  # noqa: F401
+    Admin,
+    Category,
+    InviteCode,
+    Location,
+    LocationImage,
+    Tour,
+    TourLocation,
+)
 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@aradlens.ro")
@@ -42,6 +50,14 @@ LOCATIONS_SEED = [
         "longitude": 21.3119299,
         "description": "Catedrala Nașterea Sfântului Ioan Botezătorul.",
     },
+]
+
+CATEGORIES_SEED = [
+    "Parcuri",
+    "Clădiri istorice",
+    "Muzee",
+    "Biserici",
+    "Monumente",
 ]
 
 
@@ -88,6 +104,34 @@ def ensure_schema() -> None:
             )
         print("[init_db] Coloana 'image' a fost adaugata la tabela locations.")
 
+    if "category_id" not in columns:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE locations "
+                    "ADD COLUMN category_id BIGINT UNSIGNED NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE locations ADD KEY "
+                    "idx_locations_category_id (category_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE locations ADD CONSTRAINT fk_locations_category "
+                    "FOREIGN KEY (category_id) REFERENCES categories (id) "
+                    "ON DELETE SET NULL"
+                )
+            )
+        print("[init_db] Coloana 'category_id' a fost adaugata la tabela locations.")
+
+    if "location_categories" in inspector.get_table_names():
+        with engine.begin() as conn:
+            conn.execute(text("DROP TABLE location_categories"))
+        print("[init_db] Tabela 'location_categories' a fost stearsa.")
+
 
 def seed_locations() -> None:
     with SessionLocal() as db:
@@ -99,6 +143,18 @@ def seed_locations() -> None:
         db.add_all([Location(**data) for data in LOCATIONS_SEED])
         db.commit()
         print(f"[init_db] Au fost adăugate {len(LOCATIONS_SEED)} locații.")
+
+
+def seed_categories() -> None:
+    with SessionLocal() as db:
+        existing = db.scalar(select(Category).limit(1))
+        if existing is not None:
+            print("[init_db] Categoriile există deja, se sare peste.")
+            return
+
+        db.add_all([Category(name=name) for name in CATEGORIES_SEED])
+        db.commit()
+        print(f"[init_db] Au fost adăugate {len(CATEGORIES_SEED)} categorii.")
 
 
 def seed_tour() -> None:
@@ -137,6 +193,7 @@ def main() -> None:
     ensure_schema()
     seed_admin()
     seed_locations()
+    seed_categories()
     seed_tour()
 
 

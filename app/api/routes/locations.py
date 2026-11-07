@@ -8,6 +8,7 @@ from app.api.deps import get_current_admin
 from app.core.storage import delete_media_file, load_media_bytes, save_location_image
 from app.database import get_db
 from app.models.admin import Admin
+from app.models.category import Category
 from app.models.location import Location
 from app.models.location_image import LocationImage
 from app.schemas.location import (
@@ -21,13 +22,32 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 
 def _get_or_404(db: Session, location_id: int) -> Location:
-    location = db.get(Location, location_id, options=[selectinload(Location.images)])
+    location = db.get(
+        Location,
+        location_id,
+        options=[
+            selectinload(Location.images),
+            selectinload(Location.category),
+        ],
+    )
     if location is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Locația nu a fost găsită",
         )
     return location
+
+
+def _resolve_category(db: Session, category_id: int | None) -> Category | None:
+    if category_id is None:
+        return None
+    category = db.get(Category, category_id)
+    if category is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Categorie inexistentă: {category_id}",
+        )
+    return category
 
 
 @router.get(
@@ -39,7 +59,10 @@ def list_locations(db: Session = Depends(get_db)) -> list[Location]:
     return list(
         db.scalars(
             select(Location)
-            .options(selectinload(Location.images))
+            .options(
+                selectinload(Location.images),
+                selectinload(Location.category),
+            )
             .order_by(Location.name)
         )
     )
@@ -61,11 +84,17 @@ def create_location(
     db: Session = Depends(get_db),
     _: Admin = Depends(get_current_admin),
 ) -> Location:
-    location = Location(**payload.model_dump())
+    data = payload.model_dump()
+    category_id = data.pop("category_id", None)
+
+    location = Location(**data)
+    location.category = _resolve_category(db, category_id)
     db.add(location)
+    db.flush()
+    location_id = location.id
     db.commit()
-    db.refresh(location)
-    return location
+
+    return _get_or_404(db, location_id)
 
 
 @router.get(
@@ -166,8 +195,36 @@ def update_location(
 ) -> Location:
     location = _get_or_404(db, location_id)
     data = payload.model_dump(exclude_unset=True)
+
+    if "category_id" in data:
+        category_id = data.pop("category_id")
+        location.category = _resolve_category(db, category_id)
+
     for field, value in data.items():
         setattr(location, field, value)
+
     db.commit()
-    db.refresh(location)
-    return location
+    return _get_or_404(db, location_id)
+
+
+@router.delete(
+    "/{location_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="Sterge locatie",
+)
+def delete_location(
+    location_id: int,
+    db: Session = Depends(get_db),
+    _: Admin = Depends(get_current_admin),
+) -> Response:
+    location = _get_or_404(db, location_id)
+
+    # Sterge fisierele de pe disc (poza principala + galeria).
+    delete_media_file(location.image)
+    for image in location.images:
+        delete_media_file(image.image)
+
+    db.delete(location)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

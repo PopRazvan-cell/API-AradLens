@@ -13,15 +13,18 @@ router = APIRouter(prefix="/tours", tags=["tours"])
 
 
 def _tour_options():
-    return (
+    return [
         selectinload(Tour.links)
         .selectinload(TourLocation.location)
-        .selectinload(Location.images)
-    )
+        .selectinload(Location.images),
+        selectinload(Tour.links)
+        .selectinload(TourLocation.location)
+        .selectinload(Location.category),
+    ]
 
 
 def _get_or_404(db: Session, tour_id: int) -> Tour:
-    tour = db.get(Tour, tour_id, options=[_tour_options()])
+    tour = db.get(Tour, tour_id, options=_tour_options())
     if tour is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -76,7 +79,9 @@ def create_tour(
 @router.get("", response_model=list[TourOut], summary="Lista tururilor")
 def list_tours(db: Session = Depends(get_db)) -> list[Tour]:
     return list(
-        db.scalars(select(Tour).options(_tour_options()).order_by(Tour.id))
+        db.scalars(
+            select(Tour).options(*_tour_options()).order_by(Tour.id)
+        )
     )
 
 
