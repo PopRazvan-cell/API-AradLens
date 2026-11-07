@@ -1,0 +1,27 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_USER: ${MYSQL_USER:-aradlens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-aradlens}
+      MYSQL_DB: ${MYSQL_DB:-AradLens}
+      MYSQL_CHARSET: ${MYSQL_CHARSET:-utf8mb4}
+      SECRET_KEY: ${SECRET_KEY:-schimba-aceasta-cheie-in-productie}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@aradlens.ro}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@123}
+      MEDIA_DIR: ${MEDIA_DIR:-/app/media}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+    volumes:
+      - media_data:/app/media
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8011:8000"
+
+volumes:
+  media_data:
