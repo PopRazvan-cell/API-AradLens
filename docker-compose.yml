@@ -16,6 +16,16 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@123}
       MEDIA_DIR: ${MEDIA_DIR:-/app/media}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-5}
+      FRONTEND_URL: ${FRONTEND_URL:-https://admin.aradlens.binarysquad.club}
+      PASSWORD_RESET_EXPIRE_MINUTES: ${PASSWORD_RESET_EXPIRE_MINUTES:-30}
+      RETURN_RESET_LINK: ${RETURN_RESET_LINK:-false}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       - media_data:/app/media
     extra_hosts:

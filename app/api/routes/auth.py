@@ -1,19 +1,42 @@
-from datetime import datetime, timezone
+import hashlib
+import logging
+import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import ensure_not_last_superadmin, get_current_admin
 from app.core.config import settings
+from app.core.email import send_password_reset_email
 from app.core.security import create_access_token
 from app.database import get_db
 from app.models.admin import Admin
 from app.models.invite import InviteCode
-from app.schemas.admin import AdminLogin, AdminOut, PasswordChange, Token
+from app.models.password_reset_token import PasswordResetToken
+from app.schemas.admin import (
+    AdminLogin,
+    AdminOut,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    PasswordChange,
+    ResetPasswordRequest,
+    Token,
+)
 from app.schemas.invite import RegisterRequest
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _password_reset_link(token: str) -> str:
+    return f"{settings.frontend_url}/reset-password?token={token}"
 
 
 def _authenticate(db: Session, identifier: str, password: str) -> Admin:
@@ -55,6 +78,94 @@ def _issue_token(admin: Admin) -> Token:
 def login(payload: AdminLogin, db: Session = Depends(get_db)) -> Token:
     admin = _authenticate(db, payload.username, payload.password)
     return _issue_token(admin)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    summary="Cere un link de resetare a parolei",
+)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+) -> ForgotPasswordResponse:
+    generic_detail = (
+        "Daca emailul exista, vei primi un link de resetare a parolei."
+    )
+
+    admin = db.scalar(select(Admin).where(Admin.email == payload.email))
+    if admin is None or not admin.is_active:
+        return ForgotPasswordResponse(detail=generic_detail)
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Invalideaza tokenurile anterioare nefolosite.
+    db.execute(
+        update(PasswordResetToken)
+        .where(
+            PasswordResetToken.admin_id == admin.id,
+            PasswordResetToken.used_at.is_(None),
+        )
+        .values(used_at=now)
+    )
+
+    raw_token = secrets.token_urlsafe(32)
+    db.add(
+        PasswordResetToken(
+            admin_id=admin.id,
+            token_hash=_hash_token(raw_token),
+            expires_at=now
+            + timedelta(minutes=settings.password_reset_expire_minutes),
+        )
+    )
+    db.commit()
+
+    reset_link = _password_reset_link(raw_token)
+    sent = send_password_reset_email(admin.email, reset_link)
+    if not sent:
+        logger.warning(
+            "Link de resetare parola pentru %s: %s", admin.email, reset_link
+        )
+
+    return ForgotPasswordResponse(
+        detail=generic_detail,
+        reset_link=reset_link if settings.return_reset_link else None,
+    )
+
+
+@router.post(
+    "/reset-password",
+    summary="Reseteaza parola folosind tokenul din link",
+)
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    token = db.scalar(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == _hash_token(payload.token)
+        )
+    )
+    if token is None or token.used_at is not None or token.expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Link de resetare invalid sau expirat",
+        )
+
+    admin = db.get(Admin, token.admin_id)
+    if admin is None or not admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Link de resetare invalid sau expirat",
+        )
+
+    admin.set_password(payload.new_password)
+    token.used_at = now
+    db.commit()
+
+    return {"detail": "Parola a fost resetata cu succes"}
 
 
 @router.post(

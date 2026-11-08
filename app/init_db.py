@@ -11,6 +11,7 @@ from app.models import (  # noqa: F401
     InviteCode,
     Location,
     LocationImage,
+    PasswordResetToken,
     Tour,
     TourLocation,
 )

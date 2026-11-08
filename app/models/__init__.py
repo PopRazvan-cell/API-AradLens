@@ -3,6 +3,7 @@ from app.models.category import Category
 from app.models.invite import InviteCode
 from app.models.location import Location
 from app.models.location_image import LocationImage
+from app.models.password_reset_token import PasswordResetToken
 from app.models.tour import Tour, TourLocation
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     "InviteCode",
     "Location",
     "LocationImage",
+    "PasswordResetToken",
     "Tour",
     "TourLocation",
 ]

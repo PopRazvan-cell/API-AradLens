@@ -46,6 +46,20 @@ class PasswordChange(BaseModel):
     new_password: str = Field(min_length=8, description="Minim 8 caractere")
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(max_length=255, description="Emailul contului de admin")
+
+
+class ForgotPasswordResponse(BaseModel):
+    detail: str
+    reset_link: str | None = None
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=10, description="Tokenul din linkul de resetare")
+    new_password: str = Field(min_length=8, description="Minim 8 caractere")
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
