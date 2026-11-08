@@ -40,14 +40,16 @@ def voice_audio_media_type() -> str:
     }.get(voice_audio_extension(), "application/octet-stream")
 
 
-def location_voice_path(location_id: int) -> str:
-    """Calea absoluta a fisierului audio al locatiei (voices/{id}.<ext>)."""
-    return os.path.join(voices_dir(), f"{location_id}{voice_audio_extension()}")
+def location_voice_path(location_id: int, language: str) -> str:
+    """Calea absoluta a fisierului audio al locatiei (voices/{id}_{limba}.<ext>)."""
+    return os.path.join(
+        voices_dir(), f"{location_id}_{language}{voice_audio_extension()}"
+    )
 
 
-def save_location_voice(location_id: int, content: bytes) -> str:
+def save_location_voice(location_id: int, language: str, content: bytes) -> str:
     """Scrie fisierul audio al locatiei si returneaza calea publica (/media/...)."""
-    path = location_voice_path(location_id)
+    path = location_voice_path(location_id, language)
     with open(path, "wb") as out:
         out.write(content)
     return f"/media/voices/{os.path.basename(path)}"

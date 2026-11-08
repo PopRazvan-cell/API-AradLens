@@ -1,6 +1,7 @@
 import os
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -14,11 +15,12 @@ from app.core.storage import (
 from app.database import get_db
 from app.models.admin import Admin
 from app.models.location import Location
-from app.schemas.voice import LocationVoiceOut
+from app.schemas.voice import LocationVoiceFileOut, LocationVoiceOut
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 
 MAX_TTS_CHARS = 5000
+VOICE_LANGUAGES: tuple[Literal["ro", "en"], ...] = ("ro", "en")
 
 
 def _raise_http(exc: ElevenLabsError) -> None:
@@ -32,7 +34,7 @@ def _raise_http(exc: ElevenLabsError) -> None:
     "/locations/{location_id}",
     response_model=LocationVoiceOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Generează fișierul audio al descrierii locației",
+    summary="Generează fișierele audio ro + en ale descrierii locației",
 )
 def generate_location_voice(
     location_id: int,
@@ -62,34 +64,50 @@ def generate_location_voice(
         )
 
     try:
-        audio = synthesize_speech(text, language="ro")
+        audios = {
+            language: synthesize_speech(text, language=language)
+            for language in VOICE_LANGUAGES
+        }
     except ElevenLabsError as exc:
         _raise_http(exc)
 
-    public_path = save_location_voice(location_id, audio)
+    files = {
+        language: LocationVoiceFileOut(
+            file=save_location_voice(location_id, language, audio),
+            size_bytes=len(audio),
+        )
+        for language, audio in audios.items()
+    }
     return LocationVoiceOut(
         location_id=location_id,
-        file=public_path,
         media_type=voice_audio_media_type(),
-        size_bytes=len(audio),
+        files=files,
     )
 
 
 @router.get(
     "/locations/{location_id}",
     response_class=FileResponse,
-    summary="Descarcă fișierul audio generat pentru locație",
+    summary="Descarcă fișierul audio generat pentru locație (ro/en)",
     responses={
         200: {"content": {"audio/*": {}}, "description": "Fișier audio"},
         404: {"description": "Fișierul audio nu a fost generat"},
     },
 )
-def get_location_voice(location_id: int) -> FileResponse:
-    path = location_voice_path(location_id)
+def get_location_voice(
+    location_id: int,
+    language: Literal["ro", "en"] = Query(
+        default="ro", description="Limba fișierului audio: ro (implicit) sau en"
+    ),
+) -> FileResponse:
+    path = location_voice_path(location_id, language)
     if not os.path.isfile(path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Fișierul audio nu a fost generat pentru această locație",
+            detail=(
+                "Fișierul audio nu a fost generat pentru această locație "
+                f"în limba {language}"
+            ),
         )
 
     return FileResponse(path, media_type=voice_audio_media_type())

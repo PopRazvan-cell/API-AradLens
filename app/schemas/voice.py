@@ -21,8 +21,14 @@ class SpeechRequest(BaseModel):
     )
 
 
+class LocationVoiceFileOut(BaseModel):
+    file: str = Field(description="Calea publică a fișierului audio generat")
+    size_bytes: int = Field(description="Dimensiunea fișierului în bytes")
+
+
 class LocationVoiceOut(BaseModel):
     location_id: int = Field(description="ID-ul locației")
-    file: str = Field(description="Calea publică a fișierului audio generat")
-    media_type: str = Field(description="Tipul MIME al fișierului audio")
-    size_bytes: int = Field(description="Dimensiunea fișierului în bytes")
+    media_type: str = Field(description="Tipul MIME al fișierelor audio")
+    files: dict[str, LocationVoiceFileOut] = Field(
+        description="Fișierele audio generate, cheie = limba (ro/en)"
+    )
