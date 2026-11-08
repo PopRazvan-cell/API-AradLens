@@ -38,5 +38,20 @@ class Settings:
     smtp_use_tls: bool = _env_bool("SMTP_USE_TLS", True)
     smtp_use_ssl: bool = _env_bool("SMTP_USE_SSL", False)
 
+    # ElevenLabs (voce / text-to-speech)
+    elevenlabs_api_key: str = os.getenv("ELEVENLABS_API_KEY", "")
+    elevenlabs_voice_id: str = os.getenv(
+        "ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"
+    )
+    elevenlabs_model_id: str = os.getenv(
+        "ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"
+    )
+    elevenlabs_output_format: str = os.getenv(
+        "ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128"
+    )
+    elevenlabs_timeout_seconds: int = int(
+        os.getenv("ELEVENLABS_TIMEOUT_SECONDS", "60")
+    )
+
 
 settings = Settings()
