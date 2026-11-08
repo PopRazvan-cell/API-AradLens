@@ -27,7 +27,12 @@ def speech(
     _: Admin = Depends(get_current_admin),
 ) -> Response:
     try:
-        audio = synthesize_speech(payload.text, payload.voice_id, payload.model_id)
+        audio = synthesize_speech(
+            payload.text,
+            voice_id=payload.voice_id,
+            model_id=payload.model_id,
+            language=payload.language,
+        )
     except ElevenLabsError as exc:
         _raise_http(exc)
 
@@ -46,7 +51,11 @@ def voices(_: Admin = Depends(get_current_admin)) -> dict:
 def voice_status(_: Admin = Depends(get_current_admin)) -> dict:
     return {
         "configured": bool(settings.elevenlabs_api_key),
-        "voice_id": settings.elevenlabs_voice_id,
+        "default_voice_id": settings.elevenlabs_voice_id,
+        "voices": {
+            "ro": settings.elevenlabs_voice_id_ro,
+            "en": settings.elevenlabs_voice_id_en,
+        },
         "model_id": settings.elevenlabs_model_id,
         "output_format": settings.elevenlabs_output_format,
     }

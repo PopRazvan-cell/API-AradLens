@@ -40,8 +40,18 @@ class Settings:
 
     # ElevenLabs (voce / text-to-speech)
     elevenlabs_api_key: str = os.getenv("ELEVENLABS_API_KEY", "")
+    # Voce implicita / fallback
     elevenlabs_voice_id: str = os.getenv(
         "ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"
+    )
+    # Voce pentru romana
+    elevenlabs_voice_id_ro: str = os.getenv(
+        "ELEVENLABS_VOICE_ID_RO",
+        os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+    )
+    # Voce pentru engleza
+    elevenlabs_voice_id_en: str = os.getenv(
+        "ELEVENLABS_VOICE_ID_EN", "pNInz6obpgDQGcFmaJgB"
     )
     elevenlabs_model_id: str = os.getenv(
         "ELEVENLABS_MODEL_ID", "eleven_multilingual_v2"

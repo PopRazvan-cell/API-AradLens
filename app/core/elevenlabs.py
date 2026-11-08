@@ -58,12 +58,29 @@ def _request(
         raise ElevenLabsError(504, "ElevenLabs a răspuns prea încet") from exc
 
 
+def resolve_voice_id(
+    language: str | None = None,
+    voice_id: str | None = None,
+) -> str:
+    """Alege vocea: voice_id explicit > limba (en/ro) > vocea implicita."""
+    if voice_id:
+        return voice_id
+
+    lang = (language or "").strip().lower()
+    if lang.startswith("en"):
+        return settings.elevenlabs_voice_id_en or settings.elevenlabs_voice_id
+    if lang.startswith("ro"):
+        return settings.elevenlabs_voice_id_ro or settings.elevenlabs_voice_id
+    return settings.elevenlabs_voice_id
+
+
 def synthesize_speech(
     text: str,
     voice_id: str | None = None,
     model_id: str | None = None,
+    language: str | None = None,
 ) -> bytes:
-    voice = voice_id or settings.elevenlabs_voice_id
+    voice = resolve_voice_id(language, voice_id)
     model = model_id or settings.elevenlabs_model_id
     url = (
         f"{ELEVENLABS_BASE_URL}/text-to-speech/{voice}"
