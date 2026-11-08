@@ -60,6 +60,24 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, description="Minim 8 caractere")
 
 
+class PasswordResetRequestOut(BaseModel):
+    admin_id: int
+    username: str
+    email: str
+    requested_at: datetime
+    expires_at: datetime
+    expired: bool
+
+
+class PasswordResetLinkOut(BaseModel):
+    admin_id: int
+    username: str
+    email: str
+    token: str
+    reset_link: str
+    expires_at: datetime
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
